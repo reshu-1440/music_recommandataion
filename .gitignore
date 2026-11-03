@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Frontend
+node_modules/
+dist/
+.DS_Store
+
+# Environment & Secrets
+.env
+*.local
+
+# Data checkpoints & caches
+backend/data/dpo_checkpoints/
+*.bin
+*.pkl

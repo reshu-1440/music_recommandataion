@@ -14,6 +14,7 @@ class RecommendRequest(BaseModel):
     discovery_mode: str = Field(default="familiar", description="'familiar' or 'explore' (GLIDE switch)")
     user_id: str = Field(default="default_user", description="Listener ID for preference flywheel personalization")
     limit: int = Field(default=8, ge=1, le=50, description="Number of recommendations to return")
+    preparsed_intent: dict[str, Any] | None = Field(default=None, description="Client-side pre-parsed intent from WebLLM")
 
 
 class AudioFeaturesModel(BaseModel):

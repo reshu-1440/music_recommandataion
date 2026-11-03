@@ -148,7 +148,8 @@ def recommend(req: RecommendRequest):
         "query": req.query,
         "discovery_mode": req.discovery_mode,
         "user_id": req.user_id,
-        "k": req.limit
+        "k": req.limit,
+        "parsed_intent": req.preparsed_intent or {}
     }
     result_state = agent.invoke(initial_state)
 

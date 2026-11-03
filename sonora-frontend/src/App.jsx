@@ -28,9 +28,14 @@ export default function App() {
     generatedPrompt,
     mode,
     setMode,
+    enginePreference,
+    setEngineMode,
+    activeEngineInfo,
+    webllmProgress,
     tracks,
     loading,
     backendHealthy,
+    geminiActive,
     intentDimensions,
     overallReasoning,
     retrievalSnapshot,
@@ -177,9 +182,30 @@ export default function App() {
             {nav}
           </div>
           <div className="top-right">
-            <div className="status-pill">
-              <span className="status-dot" />
-              <span>{backendHealthy ? 'FASTAPI + GEMINI + FAISS' : 'LOCAL SIMULATION'}</span>
+            <div className="engine-control">
+              {webllmProgress ? (
+                <div className="progress-pill" title={webllmProgress.text}>
+                  <div className="progress-bar-mini">
+                    <span style={{ width: `${webllmProgress.progress}%` }} />
+                  </div>
+                  <span>{webllmProgress.progress}%</span>
+                </div>
+              ) : (
+                <div className="status-pill">
+                  <span className="status-dot" />
+                  <span>{activeEngineInfo.label.toUpperCase()}</span>
+                </div>
+              )}
+              <select
+                className="engine-select"
+                value={enginePreference}
+                onChange={e => setEngineMode(e.target.value)}
+                title="Select active language model inference engine"
+              >
+                <option value="auto">AUTO (HYBRID)</option>
+                <option value="gemini">GEMINI 2.0 (CLOUD)</option>
+                <option value="webllm">WEBLLM (OFFLINE WEBGPU)</option>
+              </select>
             </div>
             <div className="avatar">L</div>
           </div>
@@ -365,7 +391,7 @@ export default function App() {
             {/* Tab: Why these? (LLM Grounded Reasoning & Intent) */}
             {tab === 'why' && (
               <section className="info-panel">
-                <div className="eyebrow">SPOTIFY NEO EXPLANATION AGENT</div>
+                <div className="eyebrow">{activeEngineInfo.label.toUpperCase()} EXPLANATION AGENT</div>
                 <h2>From words to sound</h2>
                 <p>
                   Your prompt is parsed by Google Gemini into high-dimensional audio constraints and a dense

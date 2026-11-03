@@ -41,10 +41,20 @@ def get_gemini_client():
 def parse_intent_node(state: RecommenderState) -> dict[str, Any]:
     """
     Node 1: Extract mood, bounds, context, and enriched query via Gemini or fallback.
+    Respects client-side pre-parsed intent from WebLLM if already provided.
     """
     query = state.get("query", "").strip()
     if not query:
         query = "calm study music"
+
+    # If client passed pre-parsed intent from WebLLM, use it directly
+    if state.get("parsed_intent") and isinstance(state["parsed_intent"], dict) and len(state["parsed_intent"]) > 0:
+        parsed_intent = state["parsed_intent"]
+        dense_query = parsed_intent.get("dense_query", query)
+        return {
+            "parsed_intent": parsed_intent,
+            "dense_query": dense_query
+        }
 
     llm = get_gemini_client()
     parsed_intent = None

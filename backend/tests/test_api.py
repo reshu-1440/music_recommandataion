@@ -130,3 +130,33 @@ def test_dpo_pairs_and_train():
     train_resp = trigger_dpo_training(train_req)
     assert train_resp.status in ["completed", "skipped"]
     assert "dry_run" in train_resp.mode
+
+
+def test_recommend_with_webllm_preparsed_intent():
+    """Test recommendation endpoint using client-side pre-parsed intent from WebLLM."""
+    mock_webllm_intent = {
+        "mood": ["nocturnal", "contemplative"],
+        "energy_range": [0.05, 0.25],
+        "valence_range": [0.10, 0.40],
+        "acousticness_min": 0.85,
+        "tempo_range": [60.0, 90.0],
+        "preferred_genres": ["ambient", "piano"],
+        "listening_context": "offline study mode",
+        "dense_query": "gentle acoustic piano textures for quiet midnight focus"
+    }
+
+    req = RecommendRequest(
+        query="something calm for late night study",
+        discovery_mode="familiar",
+        user_id="user_webllm_test",
+        limit=4,
+        preparsed_intent=mock_webllm_intent
+    )
+
+    resp = recommend(req)
+    assert resp.discovery_mode == "familiar"
+    assert len(resp.tracks) == 4
+    for t in resp.tracks:
+        assert t.id.startswith("SID-")
+        assert t.audio_features.energy <= 0.35
+

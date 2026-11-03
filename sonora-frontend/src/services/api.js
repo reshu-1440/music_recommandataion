@@ -44,7 +44,8 @@ export async function fetchRecommendations({
   query,
   discoveryMode = 'familiar',
   userId = 'listener_01',
-  limit = 8
+  limit = 8,
+  preparsedIntent = null
 }) {
   return request('/api/recommend', {
     method: 'POST',
@@ -52,7 +53,8 @@ export async function fetchRecommendations({
       query,
       discovery_mode: discoveryMode,
       user_id: userId,
-      limit
+      limit,
+      preparsed_intent: preparsedIntent
     })
   });
 }

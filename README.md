@@ -476,7 +476,7 @@ You can launch both the FastAPI backend, the React frontend, and your browser wi
   ```
 
 > [!TIP]
-> The startup scripts automatically verify Python and Node.js environments, activate your virtual environment if one exists, generate `.env` if missing, build missing indexes on first run, install frontend dependencies if needed, and automatically launch `http://localhost:5173` in your default browser.
+> The startup scripts automatically verify Python and Node.js environments, auto-create and activate a virtual environment (`venv`), auto-install all Python dependencies (`requirements.txt`) and frontend packages (`npm install`) on first run, generate `.env` if missing, build missing indexes, and launch `http://localhost:5173` in your default browser.
 
 ---
 

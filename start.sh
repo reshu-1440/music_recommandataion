@@ -36,31 +36,72 @@ if [ ! -f "backend/.env" ]; then
     fi
 fi
 
-# 4. Activate virtual environment if present
+# 4. Activate virtual environment if present or create one
+VENV_DIR=""
 if [ -f "venv/bin/activate" ]; then
     echo "[INFO] Activating virtual environment (venv)..."
     source "venv/bin/activate"
+    VENV_DIR="venv"
 elif [ -f ".venv/bin/activate" ]; then
     echo "[INFO] Activating virtual environment (.venv)..."
     source ".venv/bin/activate"
+    VENV_DIR=".venv"
 elif [ -f "backend/venv/bin/activate" ]; then
     echo "[INFO] Activating virtual environment (backend/venv)..."
     source "backend/venv/bin/activate"
+    VENV_DIR="backend/venv"
 elif [ -f "venv/Scripts/activate" ]; then
     echo "[INFO] Activating virtual environment (venv/Scripts)..."
     source "venv/Scripts/activate"
+    VENV_DIR="venv"
 elif [ -f ".venv/Scripts/activate" ]; then
     echo "[INFO] Activating virtual environment (.venv/Scripts)..."
     source ".venv/Scripts/activate"
+    VENV_DIR=".venv"
+else
+    echo "[INFO] Virtual environment not found. Creating 'venv'..."
+    $PYTHON_CMD -m venv venv
+    if [ -f "venv/bin/activate" ]; then
+        source "venv/bin/activate"
+        VENV_DIR="venv"
+        echo "[INFO] Virtual environment created successfully."
+    elif [ -f "venv/Scripts/activate" ]; then
+        source "venv/Scripts/activate"
+        VENV_DIR="venv"
+        echo "[INFO] Virtual environment created successfully."
+    else
+        echo "[WARNING] Could not create virtual environment. Proceeding with system Python..."
+    fi
 fi
 
-# 5. Check if index files exist, build if missing
+# 5. Check and install backend dependencies from requirements.txt
+STAMP_FILE="${VENV_DIR:-backend}/.requirements_installed"
+NEED_REQ_INSTALL=0
+if [ ! -f "$STAMP_FILE" ]; then
+    NEED_REQ_INSTALL=1
+elif ! $PYTHON_CMD -c "import os, sys, importlib.util; stamp, req = sys.argv[1], sys.argv[2]; ok = os.path.exists(stamp) and os.path.getmtime(stamp) >= os.path.getmtime(req) and importlib.util.find_spec('fastapi') is not None and importlib.util.find_spec('uvicorn') is not None; sys.exit(0 if ok else 1)" "$STAMP_FILE" "backend/requirements.txt" &>/dev/null; then
+    NEED_REQ_INSTALL=1
+fi
+
+if [ "$NEED_REQ_INSTALL" -eq 1 ]; then
+    echo "[INFO] Installing backend dependencies from backend/requirements.txt..."
+    echo "[INFO] This might take a few minutes on first run. Please wait..."
+    $PYTHON_CMD -m pip install --upgrade pip &>/dev/null || true
+    if ! $PYTHON_CMD -m pip install -r backend/requirements.txt; then
+        echo "[ERROR] Failed to install backend dependencies from backend/requirements.txt."
+        exit 1
+    fi
+    echo "installed" > "$STAMP_FILE"
+    echo "[INFO] Backend dependencies installed successfully."
+fi
+
+# 6. Check if index files exist, build if missing
 if [ ! -f "backend/data/faiss_index.bin" ]; then
     echo "[INFO] Catalog index not found. Building FAISS index and RQ-KMeans codebooks..."
     $PYTHON_CMD -m backend.app.scripts.build_index
 fi
 
-# 6. Check frontend dependencies
+# 7. Check frontend dependencies
 if [ ! -d "sonora-frontend/node_modules" ]; then
     echo "[INFO] Installing frontend dependencies (npm install)..."
     (cd sonora-frontend && npm install)
@@ -81,17 +122,17 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM EXIT
 
-# 7. Start backend
+# 8. Start backend
 echo "[1/3] Starting Sonora FastAPI Backend on http://127.0.0.1:8000 ..."
 $PYTHON_CMD -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 
-# 8. Start frontend
+# 9. Start frontend
 echo "[2/3] Starting Sonora Frontend on http://localhost:5173 ..."
 (cd sonora-frontend && npm run dev) &
 FRONTEND_PID=$!
 
-# 9. Wait and open browser
+# 10. Wait and open browser
 echo "[3/3] Waiting for servers to initialize and opening browser..."
 sleep 4
 

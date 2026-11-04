@@ -18,3 +18,4 @@ export * from './PlayerBar';
 export * from './IntentBreakdown';
 export * from './SignalsPanel';
 export * from './SemanticSnapshot';
+export * from './InvalidMoodNotice';

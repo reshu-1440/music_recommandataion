@@ -18,6 +18,10 @@ class RecommenderState(TypedDict, total=False):
     user_id: str                     # Listener ID for personalization
     k: int                           # Target number of recommendations (default: 8)
 
+    # Edge Case & Validation State
+    is_valid: bool                   # True if input is a valid music/mood prompt
+    validation_error: str | None     # Friendly user-facing guidance if invalid
+
     # Agent Internal Pipeline State
     parsed_intent: dict[str, Any]    # Structured mood, bounds, genre hints
     dense_query: str                 # Enriched query for FAISS embedding

@@ -48,3 +48,5 @@ class RecommendResponse(BaseModel):
     intent_dimensions: list[IntentDimensionItem]
     overall_reasoning: str
     retrieval_snapshot: RetrievalSnapshotModel
+    is_valid: bool = True
+    error_message: str | None = None

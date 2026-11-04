@@ -137,6 +137,7 @@ def recommend(req: RecommendRequest):
     """
     Language-steerable recommendation endpoint.
     Translates natural-language intent into Semantic IDs and grounded explanations.
+    Validates edge cases and handles invalid/non-musical inputs cleanly.
     """
     init_app_state()
     agent = state.get("agent")
@@ -155,6 +156,30 @@ def recommend(req: RecommendRequest):
         "parsed_intent": req.preparsed_intent or {}
     }
     result_state = agent.invoke(initial_state)
+
+    is_valid = result_state.get("is_valid", True)
+    validation_error = result_state.get("validation_error")
+
+    # If the input was an edge case or invalid mood, return immediately with clear guidance
+    if not is_valid:
+        vstore = state.get("vector_store")
+        cat_count = len(vstore) if vstore is not None else 0
+        snapshot = RetrievalSnapshotModel(
+            intent_id="INT-INVALID",
+            catalog_id=f"CAT-{cat_count}",
+            ranking_mode="Validation Filter",
+            retrieval="Input Guardrails"
+        )
+        return RecommendResponse(
+            query=req.query,
+            discovery_mode=req.discovery_mode,
+            tracks=[],
+            intent_dimensions=[],
+            overall_reasoning=validation_error or "Please enter a valid listening mood, emotion, genre, or activity.",
+            retrieval_snapshot=snapshot,
+            is_valid=False,
+            error_message=validation_error
+        )
 
     ranked_tracks = result_state.get("ranked_tracks", [])
     parsed_intent = result_state.get("parsed_intent", {})
@@ -206,16 +231,25 @@ def recommend(req: RecommendRequest):
 
     # 4. Format intent dimensions for "Why these?" tab
     energy_val = parsed_intent.get("energy_range", [0.1, 0.4])
+    mood_list = parsed_intent.get("mood", ["Calm"])
+    mood_label = mood_list[0].title() if mood_list else "Curated"
+    genre_list = parsed_intent.get("preferred_genres", ["Ambient"])
+    genre_label = genre_list[0].title() if genre_list else "Music"
+    context_str = parsed_intent.get("listening_context", "Study session") or "Listening session"
+
     intent_dims = [
-        IntentDimensionItem(label=parsed_intent.get("mood", ["Calm"])[0].title(), sub="Emotional tone"),
+        IntentDimensionItem(label=mood_label, sub="Emotional tone"),
         IntentDimensionItem(label=f"{int(energy_val[1] * 100)}% Max", sub="Energy profile"),
-        IntentDimensionItem(label=parsed_intent.get("preferred_genres", ["Ambient"])[0].title(), sub="Genre affinity"),
-        IntentDimensionItem(label=parsed_intent.get("listening_context", "Study session").title(), sub="Listening context")
+        IntentDimensionItem(label=genre_label, sub="Genre affinity"),
+        IntentDimensionItem(label=context_str.title(), sub="Listening context")
     ]
 
+    snap_intent = mood_list[0][:3].upper() if mood_list else "REC"
+    vstore = state.get("vector_store")
+    cat_count = len(vstore) if vstore is not None else 0
     snapshot = RetrievalSnapshotModel(
-        intent_id=f"INT-{parsed_intent.get('mood', ['REC'])[0][:3].upper()}-{len(formatted_tracks)}",
-        catalog_id=f"CAT-{len(state.get('vector_store', []))}",
+        intent_id=f"INT-{snap_intent}-{len(formatted_tracks)}",
+        catalog_id=f"CAT-{cat_count}",
         ranking_mode="Hybrid (Semantic + Preference)" if req.discovery_mode == "familiar" else "GLIDE (MMR Exploratory)",
         retrieval="FAISS IndexFlatIP (Cosine) + Gemini Reasoning"
     )
@@ -226,7 +260,9 @@ def recommend(req: RecommendRequest):
         tracks=formatted_tracks,
         intent_dimensions=intent_dims,
         overall_reasoning=overall_reasoning,
-        retrieval_snapshot=snapshot
+        retrieval_snapshot=snapshot,
+        is_valid=True,
+        error_message=None
     )
 
 

@@ -6,10 +6,7 @@ Conforms strictly to specs/SPEC_05_FASTAPI_BACKEND_API.md.
 from __future__ import annotations
 
 import os
-# Force offline mode for model caches to prevent network stalling in sandboxed environments
-os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 # Crucial: Import faiss before PyTorch / SentenceTransformers on Windows to avoid OpenMP handle conflict
 import faiss

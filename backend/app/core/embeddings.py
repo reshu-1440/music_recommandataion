@@ -6,9 +6,6 @@ Conforms strictly to specs/SPEC_02_VECTOR_STORE_AND_GLIDE.md.
 from __future__ import annotations
 
 import os
-os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-
 import numpy as np
 
 
@@ -23,32 +20,62 @@ class EmbeddingEngine:
         self.model_name = model_name
         self.device = device
         self._model = None
+        self._fallback_mode = False
         self.dimension: int = 384
 
     @property
     def model(self):
-        """Lazy load SentenceTransformer model from local cache."""
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer
+        """Lazy load SentenceTransformer model from local cache or download on first run."""
+        if self._model is None and not self._fallback_mode:
             try:
-                # Prefer strictly local cache to avoid any network latency or timeouts
-                self._model = SentenceTransformer(
-                    self.model_name,
-                    device=self.device,
-                    local_files_only=True
-                )
-            except Exception:
-                self._model = SentenceTransformer(
-                    self.model_name,
-                    device=self.device
-                )
+                from sentence_transformers import SentenceTransformer
+                # 1. Prefer strictly local cache to avoid any network latency
+                try:
+                    self._model = SentenceTransformer(
+                        self.model_name,
+                        device=self.device,
+                        local_files_only=True
+                    )
+                except Exception:
+                    # 2. Not in local cache -> download online from HuggingFace
+                    print(f"[INFO] Downloading embedding model '{self.model_name}' (~80MB, first-time setup)...")
+                    self._model = SentenceTransformer(
+                        self.model_name,
+                        device=self.device,
+                        local_files_only=False
+                    )
 
-            if hasattr(self._model, "get_embedding_dimension"):
-                self.dimension = self._model.get_embedding_dimension()
-            else:
-                self.dimension = self._model.get_sentence_embedding_dimension()
+                if hasattr(self._model, "get_embedding_dimension"):
+                    self.dimension = self._model.get_embedding_dimension()
+                else:
+                    self.dimension = self._model.get_sentence_embedding_dimension()
+
+            except Exception as e:
+                # 3. Model unavailable (offline / no internet / HuggingFace restricted)
+                print(f"[WARNING] Could not load or download SentenceTransformer model '{self.model_name}': {e}")
+                print("[INFO] Switching to deterministic acoustic pseudo-embeddings for offline catalog indexing.")
+                self._fallback_mode = True
+                self._model = None
 
         return self._model
+
+    def _fallback_encode(self, texts: list[str]) -> np.ndarray:
+        """
+        Deterministic pseudo-embeddings when model cannot be downloaded offline.
+        Produces consistent, unit-normalized (N, dimension) vectors based on text hash.
+        """
+        n = len(texts)
+        embeddings = np.zeros((n, self.dimension), dtype=np.float32)
+        for i, text in enumerate(texts):
+            clean_text = text.strip() if text else ""
+            h = int.from_bytes(clean_text.encode("utf-8", errors="ignore")[:8], "little", signed=True) if clean_text else 0
+            rng = np.random.RandomState(abs(h) % (2**31 - 1))
+            vec = rng.randn(self.dimension).astype(np.float32)
+            norm = np.linalg.norm(vec)
+            if norm > 1e-12:
+                vec /= norm
+            embeddings[i] = vec
+        return embeddings
 
     def encode_texts(self, texts: list[str], batch_size: int = 64) -> np.ndarray:
         """
@@ -58,14 +85,17 @@ class EmbeddingEngine:
         if not texts:
             return np.empty((0, self.dimension), dtype=np.float32)
 
-        embeddings = self.model.encode(
-            texts,
-            batch_size=batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-            normalize_embeddings=True
-        )
-        return embeddings.astype(np.float32)
+        if self.model is not None:
+            embeddings = self.model.encode(
+                texts,
+                batch_size=batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+                normalize_embeddings=True
+            )
+            return embeddings.astype(np.float32)
+        else:
+            return self._fallback_encode(texts)
 
     def encode_query(self, query: str) -> np.ndarray:
         """
@@ -76,10 +106,13 @@ class EmbeddingEngine:
             # Return zero vector for empty query
             return np.zeros((1, self.dimension), dtype=np.float32)
 
-        embedding = self.model.encode(
-            [query.strip()],
-            show_progress_bar=False,
-            convert_to_numpy=True,
-            normalize_embeddings=True
-        )
-        return embedding.astype(np.float32)
+        if self.model is not None:
+            embedding = self.model.encode(
+                [query.strip()],
+                show_progress_bar=False,
+                convert_to_numpy=True,
+                normalize_embeddings=True
+            )
+            return embedding.astype(np.float32)
+        else:
+            return self._fallback_encode([query.strip()])

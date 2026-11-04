@@ -25,3 +25,6 @@ dist/
 backend/data/dpo_checkpoints/
 *.bin
 *.pkl
+!backend/data/faiss_index.bin
+!backend/data/faiss_metadata.pkl
+!backend/data/sid_codebooks.pkl

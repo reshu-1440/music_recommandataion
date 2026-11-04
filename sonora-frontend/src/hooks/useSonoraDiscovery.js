@@ -8,14 +8,21 @@ import {
 } from '../services/api';
 import { webllmService } from '../services/webllmService';
 import { LLMRouter, ENGINE_MODES } from '../services/llmRouter';
+import {
+  MOCK_RECOMMENDED_TRACKS,
+  SEED_PLAYER_TRACK,
+  MOCK_RETRIEVAL_SNAPSHOT,
+  MOCK_INTENT_DIMENSIONS,
+  MOCK_OVERALL_REASONING
+} from '../data/mockTracks';
 
 const DEFAULT_PROMPT = 'Something calm for a 3 a.m. study session, with soft vocals and no distracting beats';
 
 export function useSonoraDiscovery(userId = 'listener_01') {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
-  const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [generatedPrompt, setGeneratedPrompt] = useState('Something calm for a 3 a.m. study session');
   const [mode, setModeState] = useState('familiar');
-  const [tracks, setTracks] = useState([]);
+  const [tracks, setTracks] = useState(MOCK_RECOMMENDED_TRACKS);
   const [loading, setLoading] = useState(false);
   const [backendHealthy, setBackendHealthy] = useState(true);
   const [geminiActive, setGeminiActive] = useState(false);
@@ -30,21 +37,9 @@ export function useSonoraDiscovery(userId = 'listener_01') {
   const [webllmProgress, setWebllmProgress] = useState(null); // { progress, text }
 
   // Telemetry & reasoning states
-  const [intentDimensions, setIntentDimensions] = useState([
-    { label: 'Calm', sub: 'Emotional tone' },
-    { label: 'Low energy', sub: 'Energy profile' },
-    { label: 'Ambient / Acoustic', sub: 'Genre affinity' },
-    { label: 'Deep Focus', sub: 'Listening context' }
-  ]);
-  const [overallReasoning, setOverallReasoning] = useState(
-    'Acoustic piano and atmospheric textures selected for deep focus and late-night study.'
-  );
-  const [retrievalSnapshot, setRetrievalSnapshot] = useState({
-    intent_id: 'INT-INIT',
-    catalog_id: 'CAT-1200',
-    ranking_mode: 'Hybrid (Semantic + Preference)',
-    retrieval: 'FAISS IndexFlatIP (Cosine) + Gemini/Heuristic Reasoning'
-  });
+  const [intentDimensions, setIntentDimensions] = useState(MOCK_INTENT_DIMENSIONS);
+  const [overallReasoning, setOverallReasoning] = useState(MOCK_OVERALL_REASONING);
+  const [retrievalSnapshot, setRetrievalSnapshot] = useState(MOCK_RETRIEVAL_SNAPSHOT);
 
   // User preference flywheel states
   const [saved, setSaved] = useState([]);
@@ -56,10 +51,10 @@ export function useSonoraDiscovery(userId = 'listener_01') {
 
   // Native HTML5 Audio Engine State
   const audioRef = useRef(null);
-  const [playingTrack, setPlayingTrack] = useState(null);
+  const [playingTrack, setPlayingTrack] = useState(SEED_PLAYER_TRACK);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(30);
+  const [currentTime, setCurrentTime] = useState(6);
+  const [duration, setDuration] = useState(54);
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -229,6 +224,7 @@ export function useSonoraDiscovery(userId = 'listener_01') {
       } catch (err) {
         console.error('Discovery error:', err);
         setBackendHealthy(false);
+        setTracks(prev => (prev && prev.length > 0 ? prev : MOCK_RECOMMENDED_TRACKS));
         return { success: false, error: err.message };
       } finally {
         setLoading(false);

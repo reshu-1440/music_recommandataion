@@ -11,6 +11,118 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# Curated pools of unique high-resolution album artworks per genre
+GENRE_PHOTO_POOLS = {
+    "ambient": [
+        "photo-1518837695005-2083093ee35b", "photo-1507525428034-b723cf961d3e",
+        "photo-1519681393784-d120267933ba", "photo-1470770841072-f978cf4d019e",
+        "photo-1500530855697-b586d89ba3ee", "photo-1448375240586-882707db888b",
+        "photo-1534447677768-be436bb09401", "photo-1518709268805-4e9042af9f23",
+        "photo-1509198397868-475647b2a1e5", "photo-1464822759023-fed622ff2c3b",
+        "photo-1506744038136-46273834b3fb", "photo-1498038432885-c6f3f1b912ee"
+    ],
+    "piano": [
+        "photo-1520523839898-507127050302", "photo-1511671782779-c97d3d27a1d4",
+        "photo-1500530855697-b586d89ba3ee", "photo-1465847899084-d164df4dedc6",
+        "photo-1514525253161-7a46d19cd819", "photo-1470225620780-dba8ba36b745",
+        "photo-1507838153414-b4b713384a76", "photo-1459749411175-04bf5292ceea",
+        "photo-1518837695005-2083093ee35b", "photo-1470770841072-f978cf4d019e",
+        "photo-1507525428034-b723cf961d3e", "photo-1445985543468-79496ba88218"
+    ],
+    "classical": [
+        "photo-1465847899084-d164df4dedc6", "photo-1519681393784-d120267933ba",
+        "photo-1507838153414-b4b713384a76", "photo-1470225620780-dba8ba36b745",
+        "photo-1511671782779-c97d3d27a1d4", "photo-1500530855697-b586d89ba3ee",
+        "photo-1470770841072-f978cf4d019e", "photo-1514525253161-7a46d19cd819",
+        "photo-1520523839898-507127050302", "photo-1459749411175-04bf5292ceea",
+        "photo-1506744038136-46273834b3fb", "photo-1464822759023-fed622ff2c3b"
+    ],
+    "lo-fi": [
+        "photo-1534447677768-be436bb09401", "photo-1518837695005-2083093ee35b",
+        "photo-1498038432885-c6f3f1b912ee", "photo-1445985543468-79496ba88218",
+        "photo-1507525428034-b723cf961d3e", "photo-1511671782779-c97d3d27a1d4",
+        "photo-1470252649378-9c29740c9fa8", "photo-1519681393784-d120267933ba"
+    ],
+    "electronic": [
+        "photo-1470225620780-dba8ba36b745", "photo-1516450360452-9312f5e86fc7",
+        "photo-1509198397868-475647b2a1e5", "photo-1514525253161-7a46d19cd819",
+        "photo-1519608487953-e999c86e7455", "photo-1478720568477-152d9b164e26",
+        "photo-1508700115892-45ecd05ae2ad", "photo-1518709268805-4e9042af9f23"
+    ],
+    "deep-house": [
+        "photo-1519608487953-e999c86e7455", "photo-1478720568477-152d9b164e26",
+        "photo-1508700115892-45ecd05ae2ad", "photo-1516450360452-9312f5e86fc7",
+        "photo-1514525253161-7a46d19cd819", "photo-1509198397868-475647b2a1e5",
+        "photo-1470225620780-dba8ba36b745", "photo-1493225457124-a3eb161ffa5f"
+    ],
+    "indie": [
+        "photo-1470252649378-9c29740c9fa8", "photo-1445985543468-79496ba88218",
+        "photo-1459749411175-04bf5292ceea", "photo-1501386761578-eac5c94b800a",
+        "photo-1498038432885-c6f3f1b912ee", "photo-1464375117522-1311d6a5b81f",
+        "photo-1500530855697-b586d89ba3ee", "photo-1470770841072-f978cf4d019e"
+    ],
+    "post-rock": [
+        "photo-1470770841072-f978cf4d019e", "photo-1506744038136-46273834b3fb",
+        "photo-1464822759023-fed622ff2c3b", "photo-1470225620780-dba8ba36b745",
+        "photo-1519681393784-d120267933ba", "photo-1500530855697-b586d89ba3ee",
+        "photo-1448375240586-882707db888b", "photo-1518709268805-4e9042af9f23"
+    ],
+    "synthwave": [
+        "photo-1509198397868-475647b2a1e5", "photo-1518709268805-4e9042af9f23",
+        "photo-1511671782779-c97d3d27a1d4", "photo-1514525253161-7a46d19cd819",
+        "photo-1516450360452-9312f5e86fc7", "photo-1519608487953-e999c86e7455",
+        "photo-1478720568477-152d9b164e26", "photo-1470225620780-dba8ba36b745"
+    ],
+    "jazz": [
+        "photo-1511671782779-c97d3d27a1d4", "photo-1415201364774-f6f0ab35f78f",
+        "photo-1514525253161-7a46d19cd819", "photo-1465847899084-d164df4dedc6",
+        "photo-1507838153414-b4b713384a76", "photo-1498038432885-c6f3f1b912ee",
+        "photo-1459749411175-04bf5292ceea", "photo-1445985543468-79496ba88218"
+    ],
+    "chill": [
+        "photo-1498038432885-c6f3f1b912ee", "photo-1507525428034-b723cf961d3e",
+        "photo-1501386761578-eac5c94b800a", "photo-1518837695005-2083093ee35b",
+        "photo-1470252649378-9c29740c9fa8", "photo-1534447677768-be436bb09401",
+        "photo-1445985543468-79496ba88218", "photo-1470770841072-f978cf4d019e"
+    ],
+    "rock": [
+        "photo-1464375117522-1311d6a5b81f", "photo-1493225457124-a3eb161ffa5f",
+        "photo-1514525253161-7a46d19cd819", "photo-1511671782779-c97d3d27a1d4",
+        "photo-1516450360452-9312f5e86fc7", "photo-1470225620780-dba8ba36b745",
+        "photo-1459749411175-04bf5292ceea", "photo-1470252649378-9c29740c9fa8"
+    ],
+    "metal": [
+        "photo-1514525253161-7a46d19cd819", "photo-1511671782779-c97d3d27a1d4",
+        "photo-1464375117522-1311d6a5b81f", "photo-1509198397868-475647b2a1e5",
+        "photo-1470225620780-dba8ba36b745", "photo-1493225457124-a3eb161ffa5f",
+        "photo-1516450360452-9312f5e86fc7", "photo-1519608487953-e999c86e7455"
+    ],
+    "pop": [
+        "photo-1516450360452-9312f5e86fc7", "photo-1493225457124-a3eb161ffa5f",
+        "photo-1470225620780-dba8ba36b745", "photo-1514525253161-7a46d19cd819",
+        "photo-1508700115892-45ecd05ae2ad", "photo-1509198397868-475647b2a1e5",
+        "photo-1519608487953-e999c86e7455", "photo-1459749411175-04bf5292ceea"
+    ],
+    "r-n-b": [
+        "photo-1493225457124-a3eb161ffa5f", "photo-1459749411175-04bf5292ceea",
+        "photo-1511671782779-c97d3d27a1d4", "photo-1445985543468-79496ba88218",
+        "photo-1516450360452-9312f5e86fc7", "photo-1498038432885-c6f3f1b912ee",
+        "photo-1514525253161-7a46d19cd819", "photo-1470252649378-9c29740c9fa8"
+    ],
+    "folk": [
+        "photo-1445985543468-79496ba88218", "photo-1470252649378-9c29740c9fa8",
+        "photo-1500530855697-b586d89ba3ee", "photo-1459749411175-04bf5292ceea",
+        "photo-1501386761578-eac5c94b800a", "photo-1498038432885-c6f3f1b912ee",
+        "photo-1470770841072-f978cf4d019e", "photo-1507525428034-b723cf961d3e"
+    ],
+    "downtempo": [
+        "photo-1518837695005-2083093ee35b", "photo-1519681393784-d120267933ba",
+        "photo-1470770841072-f978cf4d019e", "photo-1500530855697-b586d89ba3ee",
+        "photo-1534447677768-be436bb09401", "photo-1507525428034-b723cf961d3e",
+        "photo-1509198397868-475647b2a1e5", "photo-1478720568477-152d9b164e26"
+    ]
+}
+
 # 20+ diverse musical genres reflecting Spotify's catalog
 GENRE_PROFILES = {
     "ambient": {
@@ -247,6 +359,11 @@ def seed_curated_kaggle_dataset(output_path: str, n_samples: int = 1200, random_
                 f"{int(tempo)} BPM. Ideal for {scenario}."
             )
 
+            photo_pool = GENRE_PHOTO_POOLS.get(genre, GENRE_PHOTO_POOLS["ambient"])
+            photo_id = photo_pool[i % len(photo_pool)]
+            image_url = f"https://images.unsplash.com/{photo_id}?auto=format&fit=crop&w=600&h=600&q=85"
+            preview_url = f"/audio/{genre}.wav"
+
             records.append({
                 "track_id": _random_track_id(genre, track_counter),
                 "artists": artist,
@@ -264,7 +381,9 @@ def seed_curated_kaggle_dataset(output_path: str, n_samples: int = 1200, random_
                 "tempo": round(tempo, 2),
                 "loudness": round(loudness, 2),
                 "track_genre": genre,
-                "description": description
+                "description": description,
+                "image_url": image_url,
+                "preview_url": preview_url
             })
             track_counter += 1
 
@@ -279,10 +398,12 @@ def seed_curated_kaggle_dataset(output_path: str, n_samples: int = 1200, random_
 
 
 def load_or_fetch_dataset(data_path: str = "backend/data/kaggle_spotify_tracks.csv") -> pd.DataFrame:
-    """Load existing dataset or seed immediately if not found."""
+    """Load existing dataset or seed immediately if not found or missing image_url/preview_url."""
     path = Path(data_path)
     if path.exists() and path.stat().st_size > 100:
-        return pd.read_csv(path)
+        df = pd.read_csv(path)
+        if "image_url" in df.columns and "preview_url" in df.columns:
+            return df
     return seed_curated_kaggle_dataset(str(path))
 
 

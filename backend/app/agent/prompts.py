@@ -84,17 +84,17 @@ def heuristic_intent_parser(query: str) -> dict[str, Any]:
     preferred_genres = ["indie", "electronic", "chill"]
     context = "general listening"
 
-    # Calm / Study / Sleep / Late Night
-    if any(k in q for k in ["calm", "study", "3 a.m.", "night", "sleep", "relax", "quiet", "soft", "focus", "piano", "ambient"]):
-        energy_range = [0.05, 0.35]
-        valence_range = [0.10, 0.50]
-        acousticness_min = 0.60
-        tempo_range = [50.0, 90.0]
-        mood = ["calm", "introspective", "focused", "nocturnal"]
-        preferred_genres = ["ambient", "piano", "lo-fi", "classical", "downtempo"]
-        context = "late-night study / deep focus"
+    # 1. Sunny / Happy / Cheerful / Morning / Coffee / Feel Good
+    if any(k in q for k in ["sunny", "cheerful", "happy", "morning", "coffee", "breakfast", "uplifting", "feel good", "joy", "warm"]):
+        energy_range = [0.35, 0.72]
+        valence_range = [0.55, 0.98]
+        acousticness_min = 0.15
+        tempo_range = [85.0, 125.0]
+        mood = ["cheerful", "sunny", "uplifting", "bright"]
+        preferred_genres = ["acoustic", "folk", "pop", "soul", "indie"]
+        context = "cheerful morning / positive vibes"
 
-    # Upbeat / Workout / Party / Dance / High Energy
+    # 2. Upbeat / Workout / Party / Dance / High Energy
     elif any(k in q for k in ["workout", "gym", "run", "party", "dance", "upbeat", "high energy", "fast", "hype", "club"]):
         energy_range = [0.70, 0.98]
         valence_range = [0.50, 0.95]
@@ -103,6 +103,16 @@ def heuristic_intent_parser(query: str) -> dict[str, Any]:
         mood = ["energetic", "euphoric", "motivating", "dynamic"]
         preferred_genres = ["electronic", "deep-house", "pop", "rock", "hip-hop"]
         context = "high-energy workout / party"
+
+    # 3. Calm / Study / Sleep / Late Night / Relax
+    elif any(k in q for k in ["calm", "study", "3 a.m.", "night", "sleep", "relax", "quiet", "soft", "focus", "piano", "ambient"]):
+        energy_range = [0.05, 0.35]
+        valence_range = [0.10, 0.50]
+        acousticness_min = 0.60
+        tempo_range = [50.0, 90.0]
+        mood = ["calm", "introspective", "focused", "nocturnal"]
+        preferred_genres = ["ambient", "piano", "lo-fi", "classical", "downtempo"]
+        context = "late-night study / deep focus"
 
     # Melancholic / Sad / Rainy / Nostalgic
     elif any(k in q for k in ["sad", "rainy", "melancholy", "cry", "nostalgic", "autumn", "wistful", "alone"]):

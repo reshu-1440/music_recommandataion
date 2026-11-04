@@ -1,6 +1,6 @@
 /**
  * LLM Router & Fallback Dispatcher
- * Dynamically resolves between Cloud Gemini and In-Browser WebLLM.
+ * Dynamically resolves between Cloud Gemini, Fast Backend Semantic Agent, and In-Browser WebLLM.
  */
 
 import { webllmService } from './webllmService';
@@ -13,7 +13,7 @@ export const ENGINE_MODES = {
 
 export class LLMRouter {
   /**
-   * Determine the optimal execution engine
+   * Determine the optimal execution engine without blocking the browser UI thread
    * @param {string} preference - 'auto' | 'gemini' | 'webllm'
    * @param {boolean} backendHealthy - whether FastAPI backend is responsive
    * @param {boolean} geminiActive - whether Gemini API key is configured on backend
@@ -56,7 +56,8 @@ export class LLMRouter {
       };
     }
 
-    // AUTO mode: Prefer Gemini if online and active; fallback to WebLLM if offline or no key
+    // AUTO mode: Prioritize cloud Gemini if active; otherwise use FastAPI backend semantic engine
+    // Never freezes the UI thread by forcing heavy WebGPU weights download on initial search.
     if (isOnline && backendHealthy && geminiActive) {
       return {
         engine: 'gemini',
@@ -65,7 +66,15 @@ export class LLMRouter {
       };
     }
 
-    if (hasWebGPU) {
+    if (backendHealthy) {
+      return {
+        engine: 'hybrid',
+        label: 'Auto (Fast Semantic Engine)',
+        fallbackReason: null
+      };
+    }
+
+    if (webllmService.isReady && hasWebGPU) {
       return {
         engine: 'webllm',
         label: 'WebLLM Llama-3.2 (Offline WebGPU)',
@@ -76,7 +85,7 @@ export class LLMRouter {
     return {
       engine: 'heuristic',
       label: 'Local Heuristic Engine',
-      fallbackReason: 'WebGPU unsupported & cloud offline'
+      fallbackReason: 'Offline mode active'
     };
   }
 }

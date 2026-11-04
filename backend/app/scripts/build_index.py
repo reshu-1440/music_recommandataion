@@ -68,6 +68,8 @@ def build_catalog_index(
             "duration_ms": int(row["duration_ms"]),
             "popularity": int(row["popularity"]),
             "semantic_id": row["semantic_id"],
+            "image_url": str(row.get("image_url", "")),
+            "preview_url": str(row.get("preview_url", "")),
             "description": row["description"],
             "audio_features": {
                 "danceability": float(row["danceability"]),

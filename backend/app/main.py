@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend.app.agent.graph import build_recommender_graph
 from backend.app.config import settings
@@ -113,6 +114,11 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+# Audio Previews Static Mount for Real Audio Streaming
+AUDIO_DIR = Path(__file__).resolve().parent.parent / "data" / "audio_previews"
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
+
 
 @app.get("/api/health")
 def health_check():
@@ -165,7 +171,9 @@ def recommend(req: RecommendRequest):
     formatted_tracks = []
     for t in ranked_tracks:
         genre_key = t.get("track_genre", "ambient").lower()
-        image_key = GENRE_ARTWORK.get(genre_key, "photo-1470225620780-dba8ba36b745")
+        image_url = t.get("image_url") or f"https://images.unsplash.com/{GENRE_ARTWORK.get(genre_key, 'photo-1470225620780-dba8ba36b745')}?auto=format&fit=crop&w=600&h=600&q=85"
+        image_key = t.get("image") or image_url
+        preview_url = t.get("preview_url") or f"/audio/{genre_key}.wav"
         dur_ms = t.get("duration_ms", 230000)
         score_val = float(t.get("score", 0.90))
 
@@ -193,6 +201,8 @@ def recommend(req: RecommendRequest):
             numeric_score=score_val,
             semantic_id=t.get("semantic_id", "SID-00-00-00-00"),
             image=image_key,
+            image_url=image_url,
+            preview_url=preview_url,
             reason=t.get("explanation", "Matches requested mood and tempo."),
             audio_features=audio_feats
         ))

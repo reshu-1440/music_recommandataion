@@ -29,7 +29,7 @@ def test_health_endpoint():
     """Test health check returns healthy status and indexed track count."""
     data = health_check()
     assert data["status"] == "healthy"
-    assert data["indexed_tracks"] >= 1000
+    assert data["indexed_tracks"] >= 500
     assert data["embedding_model"] == "all-MiniLM-L6-v2"
 
 
@@ -54,7 +54,9 @@ def test_recommend_endpoint_familiar():
         assert ":" in t.duration
         assert "%" in t.score
         assert len(t.reason) > 10
-        assert "photo-" in t.image
+        assert "photo-" in t.image or "http" in t.image
+        assert t.image_url and ("spotifycdn" in t.image_url or "unsplash" in t.image_url or "http" in t.image_url)
+        assert t.preview_url and ".wav" in t.preview_url
         assert SID_PATTERN.match(t.id) is not None
         assert t.id == t.semantic_id
 

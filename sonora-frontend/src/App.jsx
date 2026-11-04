@@ -1,5 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useSonoraDiscovery } from './hooks/useSonoraDiscovery';
+import {
+  TrackCard,
+  IntentBreakdown,
+  SignalsPanel,
+  PlayerBar,
+  SemanticSnapshot
+} from './components';
 
 const FALLBACK_SEED_TRACK = {
   title: 'Tranquil Breath',
@@ -10,15 +17,9 @@ const FALLBACK_SEED_TRACK = {
   id: 'SID-11-00-12-13',
   semantic_id: 'SID-11-00-12-13',
   image: 'photo-1500530855697-b586d89ba3ee',
+  image_url: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&h=600&q=85',
+  preview_url: '/audio/ambient.wav',
   reason: 'Slow acoustic textures and minimal rhythmic movement create a focused study atmosphere.'
-};
-
-const cover = t => {
-  if (!t || !t.image) {
-    return 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=520&h=520&q=85';
-  }
-  if (t.image.startsWith('http')) return t.image;
-  return `https://images.unsplash.com/${t.image}?auto=format&fit=crop&w=520&h=520&q=85`;
 };
 
 export default function App() {
@@ -34,8 +35,6 @@ export default function App() {
     webllmProgress,
     tracks,
     loading,
-    backendHealthy,
-    geminiActive,
     intentDimensions,
     overallReasoning,
     retrievalSnapshot,
@@ -46,7 +45,18 @@ export default function App() {
     dpoTraining,
     dpoResult,
     discover,
+    // Real Audio state & controls
+    playingTrack,
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isMuted,
     handlePlay,
+    togglePlayPause,
+    handleSeek,
+    handleVolumeChange,
+    handleToggleMute,
     handleToggleSave,
     handleSkip,
     handleTrainDPO
@@ -54,16 +64,14 @@ export default function App() {
 
   const [tab, setTab] = useState('tracks');
   const [nav, setNav] = useState('Discover');
-  const [current, setCurrent] = useState(FALLBACK_SEED_TRACK);
-  const [playing, setPlaying] = useState(false);
   const [toast, setToast] = useState('');
 
-  // Synchronize current track when tracks load
-  useEffect(() => {
-    if (tracks && tracks.length > 0 && (!current || current.id === FALLBACK_SEED_TRACK.id)) {
-      setCurrent(tracks[0]);
-    }
-  }, [tracks, current]);
+  // Determine currently selected track (either active playing track or top recommendation)
+  const current = useMemo(() => {
+    if (playingTrack) return playingTrack;
+    if (tracks && tracks.length > 0) return tracks[0];
+    return FALLBACK_SEED_TRACK;
+  }, [playingTrack, tracks]);
 
   const showToast = message => {
     setToast(message);
@@ -72,10 +80,8 @@ export default function App() {
   };
 
   const playTrack = track => {
-    setCurrent(track);
-    setPlaying(true);
     handlePlay(track);
-    showToast(`Now playing: ${track.title} · Sonora Player`);
+    showToast(`Streaming audio: ${track.title} · Sonora Player`);
   };
 
   const toggleSave = async track => {
@@ -91,7 +97,7 @@ export default function App() {
   const handleSearchSubmit = async () => {
     if (!prompt.trim()) return showToast('Describe the mood you want to hear first');
     const nextMode = /new|different|unexpected|explore|unusual|stretch/i.test(prompt) ? 'explore' : mode;
-    showToast('Consulting Gemini & FAISS index...');
+    showToast('Consulting agent & FAISS index...');
     const res = await discover(prompt, nextMode);
     if (res && res.success) {
       showToast(`Generated ${res.count} recommendations via Semantic IDs`);
@@ -223,6 +229,7 @@ export default function App() {
                     key={t.id}
                     track={t}
                     saved={saved.includes(t.id)}
+                    isPlaying={isPlaying && current?.id === t.id}
                     onPlay={() => playTrack(t)}
                     onSave={() => toggleSave(t)}
                     onSkip={() => skipTrack(t)}
@@ -366,6 +373,7 @@ export default function App() {
                         key={t.id}
                         track={t}
                         saved={saved.includes(t.id)}
+                        isPlaying={isPlaying && current?.id === t.id}
                         onPlay={() => playTrack(t)}
                         onSave={() => toggleSave(t)}
                         onSkip={() => skipTrack(t)}
@@ -390,228 +398,53 @@ export default function App() {
 
             {/* Tab: Why these? (LLM Grounded Reasoning & Intent) */}
             {tab === 'why' && (
-              <section className="info-panel">
-                <div className="eyebrow">{activeEngineInfo.label.toUpperCase()} EXPLANATION AGENT</div>
-                <h2>From words to sound</h2>
-                <p>
-                  Your prompt is parsed by Google Gemini into high-dimensional audio constraints and a dense
-                  semantic vector. FAISS matches tracks in continuous vector space, while RQ-KMeans generates
-                  discrete Semantic IDs. Finally, the agent crafts grounded explanations for every song.
-                </p>
-                <div className="thin-divider" />
-                <h3>Detected intent dimensions</h3>
-                <div className="metrics">
-                  {intentDimensions.map((item, idx) => (
-                    <div className="metric" key={idx}>
-                      <b>{item.label}</b>
-                      <small>{item.sub}</small>
-                    </div>
-                  ))}
-                </div>
-                <div className="thin-divider" />
-                <h3>Agent reasoning breakdown</h3>
-                <p>{overallReasoning}</p>
-              </section>
+              <IntentBreakdown
+                activeEngineInfo={activeEngineInfo}
+                intentDimensions={intentDimensions}
+                overallReasoning={overallReasoning}
+              />
             )}
 
             {/* Tab: Preference Signals & DPO Flywheel */}
             {tab === 'signals' && (
-              <section className="info-panel">
-                <div className="eyebrow">PREFERENCE FLYWHEEL (RLHF / DPO)</div>
-                <h2>Your feedback shapes the next mix.</h2>
-                <p>
-                  Every Save (+1.0), Skip (-1.0), and Play (+0.2) action updates your Tier 1 real-time taste
-                  centroid. Accumulated sessions are mined into preference triplets (Prompt, Chosen, Rejected)
-                  to fine-tune the model with Direct Preference Optimization.
-                </p>
-
-                <div className="metrics three">
-                  {[
-                    ['Saved', saved.length],
-                    ['Skipped', skipped.length],
-                    ['Played', played.length]
-                  ].map(([label, count]) => (
-                    <div className="metric" key={label}>
-                      <b>{count}</b>
-                      <small>{label}</small>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="dpo-action-card">
-                  <div>
-                    <b>Direct Preference Optimization (DPO Flywheel)</b>
-                    <p>Mines (Prompt, Chosen, Rejected) triplets from your feedback to align recommendations.</p>
-                    {dpoResult && (
-                      <span className="dpo-res-badge">
-                        Status: {dpoResult.status} · Pairs: {dpoResult.pairs_trained || 0} ({dpoResult.mode})
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    className="dpo-button"
-                    onClick={() => handleTrainDPO(true)}
-                    disabled={dpoTraining}
-                  >
-                    {dpoTraining ? 'Aligning DPO...' : 'Run DPO Flywheel (Simulate)'}
-                  </button>
-                </div>
-
-                <div className="thin-divider" />
-                <h3>Recent preference signals</h3>
-                {history.length ? (
-                  <div className="history">
-                    {history.map((h, i) => (
-                      <div key={i}>{h}</div>
-                    ))}
-                  </div>
-                ) : (
-                  <p>No interactions yet. Save, play or skip a track to start building your taste profile.</p>
-                )}
-              </section>
+              <SignalsPanel
+                saved={saved}
+                skipped={skipped}
+                played={played}
+                history={history}
+                dpoTraining={dpoTraining}
+                dpoResult={dpoResult}
+                onTrainDPO={handleTrainDPO}
+              />
             )}
 
             {/* Semantic Retrieval Snapshot Footer */}
-            <section className="semantic-panel">
-              <div className="semantic-head">
-                <div>
-                  <b>Semantic retrieval snapshot</b>
-                  <small>Live telemetry · Spotify Tracks Catalog</small>
-                </div>
-                <span className="tag">RQ-KMEANS + FAISS</span>
-              </div>
-              <div className="semantic-grid">
-                {[
-                  ['INTENT ID', retrievalSnapshot.intent_id],
-                  ['CATALOG ID', retrievalSnapshot.catalog_id],
-                  ['RANKING MODE', retrievalSnapshot.ranking_mode],
-                  ['RETRIEVAL', retrievalSnapshot.retrieval]
-                ].map(([a, b]) => (
-                  <div key={a}>
-                    <small>{a}</small>
-                    <strong>{b}</strong>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <SemanticSnapshot retrievalSnapshot={retrievalSnapshot} />
           </>
         )}
       </main>
 
-      {/* Persistent Bottom Player Bar */}
-      <footer className="player-bar">
-        <div className="now-playing">
-          <img src={cover(current)} alt="Current track artwork" />
-          <div>
-            <b>{current.title}</b>
-            <small>{current.artist}</small>
-          </div>
-          <button
-            className={`heart ${saved.includes(current.id) ? 'liked' : ''}`}
-            onClick={() => toggleSave(current)}
-            aria-label="Save current track"
-          >
-            {saved.includes(current.id) ? '♥' : '♡'}
-          </button>
-        </div>
-        <div className="player-center">
-          <div className="player-controls">
-            <button
-              title="Shuffle"
-              onClick={() => {
-                if (tracks.length > 0) {
-                  playTrack(tracks[Math.floor(Math.random() * tracks.length)]);
-                }
-              }}
-            >
-              ⤨
-            </button>
-            <button
-              title="Previous"
-              onClick={() => {
-                if (tracks.length > 0) playTrack(tracks[0]);
-              }}
-            >
-              ◂
-            </button>
-            <button
-              className="play-button"
-              onClick={() => setPlaying(!playing)}
-              title={playing ? 'Pause' : 'Play'}
-            >
-              {playing ? 'Ⅱ' : '▶'}
-            </button>
-            <button
-              title="Next"
-              onClick={() => {
-                if (tracks.length > 0) {
-                  const idx = tracks.findIndex(t => t.id === current.id);
-                  playTrack(tracks[(idx + 1 + tracks.length) % tracks.length]);
-                }
-              }}
-            >
-              ▸
-            </button>
-            <button title="Repeat" onClick={() => showToast('Repeat mode enabled')}>
-              ↻
-            </button>
-          </div>
-          <div className="timeline">
-            <span>0:00</span>
-            <div>
-              <i style={{ width: playing ? '45%' : '20%' }} />
-            </div>
-            <span>{current.duration || '3:30'}</span>
-          </div>
-        </div>
-        <div className="player-extra">
-          <span>NOW PLAYING</span>
-          <span>♫</span>
-          <span>▰</span>
-        </div>
-      </footer>
+      {/* Persistent Bottom Player Bar with Real HTML5 Audio Streaming */}
+      <PlayerBar
+        current={current}
+        playing={isPlaying}
+        saved={saved}
+        tracks={tracks}
+        currentTime={currentTime}
+        duration={duration}
+        volume={volume}
+        isMuted={isMuted}
+        onTogglePlay={togglePlayPause}
+        onToggleSave={toggleSave}
+        onPlayTrack={playTrack}
+        onSeek={handleSeek}
+        onVolumeChange={handleVolumeChange}
+        onToggleMute={handleToggleMute}
+        onShowToast={showToast}
+      />
 
       {/* Floating Status Toast */}
       {toast && <div className="toast">{toast}</div>}
     </div>
-  );
-}
-
-function TrackCard({ track, saved, onPlay, onSave, onSkip }) {
-  return (
-    <article className="track-card">
-      <div className="artwork">
-        <img src={cover(track)} alt={`${track.title} artwork`} loading="lazy" />
-        <button className="art-play" onClick={onPlay} aria-label={`Play ${track.title}`}>
-          ▶
-        </button>
-      </div>
-      <div className="track-title-row">
-        <div className="track-name">
-          <b title={track.title}>{track.title}</b>
-          <small>{track.artist}</small>
-        </div>
-        <button
-          className={`heart ${saved ? 'liked' : ''}`}
-          onClick={onSave}
-          aria-label="Save track"
-        >
-          {saved ? '♥' : '♡'}
-        </button>
-      </div>
-      <div className="genre">{track.genre}</div>
-      <div className="match-row">
-        <span className="tag">{track.score} match</span>
-        <small>{track.duration}</small>
-      </div>
-      <div className="card-divider" />
-      <p className="reason">{track.reason}</p>
-      <div className="card-bottom">
-        <code title="Discrete RQ-KMeans Semantic ID">{track.id}</code>
-        <button onClick={onSkip} title="Log negative preference feedback">
-          Not for me
-        </button>
-      </div>
-    </article>
   );
 }

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     # Google Gemini Settings
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", ""))
     gemini_model: str = "gemini-2.0-flash"
+    gemini_timeout: float = 6.0
+    gemini_max_retries: int = 1
 
     # Embedding & Retrieval Settings
     embedding_model: str = "all-MiniLM-L6-v2"

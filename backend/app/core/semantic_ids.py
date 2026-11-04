@@ -43,7 +43,7 @@ class SemanticIDGenerator:
         Extract and normalize the 7 continuous audio features from catalog DataFrame:
         [danceability, energy, valence, acousticness, instrumentalness, tempo_norm, loudness_norm]
         """
-        missing = [col for col in REQUIRED_AUDIO_COLUMNS if col in df.columns and False or col not in df.columns]
+        missing = [col for col in REQUIRED_AUDIO_COLUMNS if col not in df.columns]
         if missing:
             raise ValueError(f"Missing required audio columns in DataFrame: {missing}")
 

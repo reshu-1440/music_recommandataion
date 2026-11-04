@@ -31,7 +31,9 @@ def get_gemini_client():
         return ChatGoogleGenerativeAI(
             model=settings.gemini_model,
             google_api_key=settings.gemini_api_key,
-            temperature=0.2
+            temperature=0.2,
+            timeout=settings.gemini_timeout,
+            max_retries=settings.gemini_max_retries
         )
     except Exception as e:
         logger.warning(f"Failed to initialize ChatGoogleGenerativeAI: {e}")
@@ -121,18 +123,29 @@ def filter_node(state: RecommenderState) -> dict[str, Any]:
         genre = track.get("track_genre", "").lower()
 
         bonus = 0.0
-        # Energy match bonus
+        # Energy match bonus & penalty
         if energy_range[0] <= energy <= energy_range[1]:
-            bonus += 0.08
-        # Valence match bonus
+            bonus += 0.15
+        elif energy > energy_range[1]:
+            bonus -= min(0.25, (energy - energy_range[1]) * 0.5)
+        elif energy < energy_range[0]:
+            bonus -= min(0.20, (energy_range[0] - energy) * 0.4)
+
+        # Valence match bonus & penalty
         if valence_range[0] <= valence <= valence_range[1]:
-            bonus += 0.05
+            bonus += 0.08
+        elif valence > valence_range[1]:
+            bonus -= min(0.15, (valence - valence_range[1]) * 0.3)
+
         # Acousticness threshold bonus
         if acousticness >= acousticness_min:
-            bonus += 0.05
+            bonus += 0.10
+        elif acousticness_min > 0.0:
+            bonus -= min(0.15, (acousticness_min - acousticness) * 0.3)
+
         # Genre affinity bonus
         if any(pg in genre for pg in preferred_genres):
-            bonus += 0.07
+            bonus += 0.12
 
         track_copy = dict(track)
         track_copy["base_score"] = track.get("score", 0.5)

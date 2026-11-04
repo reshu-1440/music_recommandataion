@@ -74,10 +74,19 @@ class WebLLMService {
         }
       };
 
-      this.engine = await webllmModule.CreateMLCEngine(this.modelId, {
-        initProgressCallback,
-        logLevel: 'WARN'
-      });
+      try {
+        const worker = new Worker(new URL('./webllmWorker.js', import.meta.url), { type: 'module' });
+        this.engine = await webllmModule.CreateWebWorkerMLCEngine(worker, this.modelId, {
+          initProgressCallback,
+          logLevel: 'WARN'
+        });
+      } catch (workerErr) {
+        console.warn('Dedicated WebWorker unavailable, falling back to direct engine:', workerErr);
+        this.engine = await webllmModule.CreateMLCEngine(this.modelId, {
+          initProgressCallback,
+          logLevel: 'WARN'
+        });
+      }
 
       this.isReady = true;
       this.isLoading = false;

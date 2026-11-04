@@ -9,12 +9,30 @@ import json
 import re
 from typing import Any
 
+from backend.app.agent.validator import validate_listening_mood, MoodValidationResult
+
 INTENT_PARSER_SYSTEM_PROMPT = """You are the Intent Parser for Sonora, a language-steerable music discovery engine inspired by Spotify NEO and GLIDE.
 
 Analyze the user's natural-language music request and map it to a structured JSON object representing their acoustic and emotional preferences.
 
-Output MUST be a single raw valid JSON object without markdown code blocks, conforming to this schema:
+CRITICAL EDGE CASE RULE:
+If the user's request is gibberish, random numbers/symbols, keyboard mash (e.g., "23458792345345", "asdfghjkl"), or completely unrelated to music/audio/mood/emotions/ambiance (e.g., questions about math, coding, cooking, or general world facts), you MUST return:
 {
+  "is_valid": false,
+  "error_message": "Please enter a valid listening mood, emotion, genre, or activity (e.g., 'Late Night Study', 'Heavy Workout', 'Rainy Sunday').",
+  "mood": [],
+  "energy_range": [0.0, 1.0],
+  "valence_range": [0.0, 1.0],
+  "acousticness_min": 0.0,
+  "tempo_range": [50.0, 200.0],
+  "preferred_genres": [],
+  "listening_context": "",
+  "dense_query": ""
+}
+
+Otherwise, for valid music/mood requests, output MUST be a single raw valid JSON object without markdown code blocks, conforming to this schema:
+{
+  "is_valid": true,
   "mood": ["string", "string", "string"],
   "energy_range": [float, float],       // values between 0.0 (silent/calm) and 1.0 (explosive/heavy)
   "valence_range": [float, float],      // values between 0.0 (sad/melancholic) and 1.0 (happy/euphoric)
@@ -29,6 +47,7 @@ Example:
 User: "something calm for a 3 a.m. study session with soft piano and no distracting drums"
 JSON:
 {
+  "is_valid": true,
   "mood": ["calm", "contemplative", "focused", "nocturnal"],
   "energy_range": [0.05, 0.30],
   "valence_range": [0.15, 0.45],
@@ -71,8 +90,24 @@ def extract_json_from_llm_response(text: str) -> dict | list:
 def heuristic_intent_parser(query: str) -> dict[str, Any]:
     """
     Deterministic rule-based intent parser used when offline or without Gemini API key.
-    Provides identical schema guarantees so the pipeline never breaks.
+    Provides identical schema guarantees while validating against random or invalid inputs.
     """
+    # 1. Edge-case validation check
+    validation = validate_listening_mood(query)
+    if not validation.is_valid:
+        return {
+            "is_valid": False,
+            "error_message": validation.error_message,
+            "mood": [],
+            "energy_range": [0.0, 1.0],
+            "valence_range": [0.0, 1.0],
+            "acousticness_min": 0.0,
+            "tempo_range": [50.0, 200.0],
+            "preferred_genres": [],
+            "listening_context": "",
+            "dense_query": ""
+        }
+
     q = query.lower()
 
     # Default profile: Balanced
@@ -125,6 +160,8 @@ def heuristic_intent_parser(query: str) -> dict[str, Any]:
         context = "rainy day / nostalgic reflection"
 
     return {
+        "is_valid": True,
+        "error_message": None,
         "mood": mood,
         "energy_range": energy_range,
         "valence_range": valence_range,

@@ -12,7 +12,8 @@ import {
   DiscoveryBanner,
   SemanticSnapshot,
   IntentBreakdown,
-  SignalsPanel
+  SignalsPanel,
+  InvalidMoodNotice
 } from './components';
 
 export default function App() {
@@ -28,6 +29,8 @@ export default function App() {
     webllmProgress,
     tracks,
     loading,
+    validationError,
+    isInvalidMood,
     intentDimensions,
     overallReasoning,
     retrievalSnapshot,
@@ -206,12 +209,23 @@ export default function App() {
             onSubmit={handleSearchSubmit}
             onChipSelect={handleChipSelect}
             loading={loading}
-            className="mb-10"
+            validationError={validationError}
+            className="mb-8"
           />
+
+          {/* Invalid Mood Alert Notice when an edge-case or random input is submitted */}
+          {isInvalidMood && (
+            <InvalidMoodNotice
+              query={generatedPrompt || prompt}
+              errorMessage={validationError || undefined}
+              onSelectPreset={handleChipSelect}
+              className="mb-8"
+            />
+          )}
 
           {/* Results Heading & Mode Switch (GLIDE) */}
           <ResultsHeader
-            query={generatedPrompt}
+            query={isInvalidMood ? undefined : generatedPrompt}
             count={tracks.length}
             mode={mode}
             onModeChange={setMode}
@@ -223,16 +237,18 @@ export default function App() {
           {/* Tab 1: Tracks Grid */}
           {tab === 'tracks' && (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">
-                  {mode === 'explore'
-                    ? 'GLIDE Non-Habitual Recommendations'
-                    : 'Picked for this moment'}
-                </h3>
-                <span className="text-xs font-medium text-zinc-400">
-                  {mode === 'explore' ? 'Diversified Discovery' : 'Sorted by Relevance'}
-                </span>
-              </div>
+              {!isInvalidMood && (
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">
+                    {mode === 'explore'
+                      ? 'GLIDE Non-Habitual Recommendations'
+                      : 'Picked for this moment'}
+                  </h3>
+                  <span className="text-xs font-medium text-zinc-400">
+                    {mode === 'explore' ? 'Diversified Discovery' : 'Sorted by Relevance'}
+                  </span>
+                </div>
+              )}
 
               <TrackGrid
                 tracks={tracks}
@@ -244,9 +260,14 @@ export default function App() {
                 onToggleSave={toggleSave}
                 onSkipTrack={skipTrack}
                 onInspectTrack={handleInspectTrack}
+                emptyMessage={
+                  isInvalidMood
+                    ? "Please enter a valid listening mood, activity, or genre above to discover music."
+                    : "No tracks found for this mood query. Try a different prompt!"
+                }
               />
 
-              {mode !== 'explore' && (
+              {!isInvalidMood && mode !== 'explore' && (
                 <DiscoveryBanner onExplore={() => setMode('explore')} />
               )}
             </>

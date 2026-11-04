@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { MoodChips, MoodPreset } from './MoodChips';
 import { ArrowRightIcon, SparklesIcon } from './icons';
 
@@ -8,6 +8,7 @@ interface MoodSearchProps {
   onSubmit: () => void;
   onChipSelect: (preset: MoodPreset) => void;
   loading?: boolean;
+  validationError?: string | null;
   className?: string;
 }
 
@@ -17,6 +18,7 @@ export const MoodSearch: React.FC<MoodSearchProps> = ({
   onSubmit,
   onChipSelect,
   loading = false,
+  validationError = null,
   className = ''
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -30,18 +32,27 @@ export const MoodSearch: React.FC<MoodSearchProps> = ({
 
   return (
     <section
-      className={`relative p-5 sm:p-7 rounded-2xl bg-[#141417] border border-white/[0.08] shadow-lg transition-all duration-200 focus-within:border-white/[0.2] focus-within:shadow-[0_8px_32px_rgba(0,0,0,0.6)] ${className}`}
+      className={`relative p-5 sm:p-7 rounded-2xl bg-[#141417] border ${
+        validationError
+          ? 'border-amber-500/40 shadow-[0_8px_32px_rgba(245,158,11,0.12)]'
+          : 'border-white/[0.08] shadow-lg'
+      } transition-all duration-200 focus-within:border-white/[0.2] focus-within:shadow-[0_8px_32px_rgba(0,0,0,0.6)] ${className}`}
     >
       <div className="flex items-center justify-between gap-3 mb-3">
         <label htmlFor="mood-prompt" className="text-sm font-semibold text-white flex items-center gap-2">
           <span>Describe your listening mood</span>
+          {validationError && (
+            <span className="text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+              Needs valid mood
+            </span>
+          )}
         </label>
         <span className="text-[11px] font-medium tracking-wider text-zinc-400 uppercase hidden sm:inline-block">
           Natural Language Engine
         </span>
       </div>
 
-      <div className="relative mb-5">
+      <div className="relative mb-3">
         <textarea
           ref={textareaRef}
           id="mood-prompt"
@@ -50,12 +61,27 @@ export const MoodSearch: React.FC<MoodSearchProps> = ({
           onKeyDown={handleKeyDown}
           placeholder="e.g. Dreamy sunset by the beach, warm synth pads with slow lo-fi drums..."
           rows={3}
-          className="w-full p-4 rounded-xl bg-[#1A1A1E] border border-white/[0.08] text-white text-sm sm:text-base placeholder-zinc-500 resize-none transition-all duration-150 outline-none focus:border-[#C6F26B]/50 focus:ring-2 focus:ring-[#C6F26B]/20"
+          className={`w-full p-4 rounded-xl bg-[#1A1A1E] border text-white text-sm sm:text-base placeholder-zinc-500 resize-none transition-all duration-150 outline-none ${
+            validationError
+              ? 'border-amber-500/50 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20'
+              : 'border-white/[0.08] focus:border-[#C6F26B]/50 focus:ring-2 focus:ring-[#C6F26B]/20'
+          }`}
         />
         <div className="absolute right-3 bottom-3 text-[11px] text-zinc-500 pointer-events-none hidden md:block">
           Press <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] text-zinc-400 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] text-zinc-400 font-mono text-[10px]">Enter</kbd>
         </div>
       </div>
+
+      {validationError && (
+        <div className="flex items-center gap-2 mb-4 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs sm:text-sm text-amber-300 animate-fadeIn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0 text-amber-400">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span className="flex-1 font-medium">{validationError}</span>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-1 border-t border-white/[0.06]">
         <div className="flex-1">

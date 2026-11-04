@@ -14,6 +14,7 @@ from backend.app.agent.prompts import (
     heuristic_intent_parser,
     heuristic_explainer
 )
+from backend.app.agent.validator import validate_listening_mood
 from backend.app.agent.state import RecommenderState
 from backend.app.config import settings
 from backend.app.core.embeddings import EmbeddingEngine
@@ -43,21 +44,49 @@ def get_gemini_client():
 def parse_intent_node(state: RecommenderState) -> dict[str, Any]:
     """
     Node 1: Extract mood, bounds, context, and enriched query via Gemini or fallback.
+    Validates input and handles edge cases (numbers, symbols, gibberish, off-topic requests).
     Respects client-side pre-parsed intent from WebLLM if already provided.
     """
     query = state.get("query", "").strip()
-    if not query:
-        query = "calm study music"
 
-    # If client passed pre-parsed intent from WebLLM, use it directly
+    # 1. Edge case validation
+    val_res = validate_listening_mood(query)
+    if not val_res.is_valid:
+        return {
+            "is_valid": False,
+            "validation_error": val_res.error_message,
+            "parsed_intent": {"is_valid": False, "error_message": val_res.error_message},
+            "dense_query": "",
+            "candidates": [],
+            "filtered_tracks": [],
+            "ranked_tracks": [],
+            "overall_reasoning": val_res.error_message
+        }
+
+    # 2. If client passed pre-parsed intent from WebLLM, check validity and use if valid
     if state.get("parsed_intent") and isinstance(state["parsed_intent"], dict) and len(state["parsed_intent"]) > 0:
         parsed_intent = state["parsed_intent"]
+        if parsed_intent.get("is_valid") is False:
+            err_msg = parsed_intent.get("error_message") or val_res.error_message or "Please enter a valid listening mood."
+            return {
+                "is_valid": False,
+                "validation_error": err_msg,
+                "parsed_intent": parsed_intent,
+                "dense_query": "",
+                "candidates": [],
+                "filtered_tracks": [],
+                "ranked_tracks": [],
+                "overall_reasoning": err_msg
+            }
         dense_query = parsed_intent.get("dense_query", query)
         return {
+            "is_valid": True,
+            "validation_error": None,
             "parsed_intent": parsed_intent,
             "dense_query": dense_query
         }
 
+    # 3. LLM Parsing
     llm = get_gemini_client()
     parsed_intent = None
 
@@ -69,11 +98,28 @@ def parse_intent_node(state: RecommenderState) -> dict[str, Any]:
         except Exception as exc:
             logger.warning(f"Gemini intent parsing failed, using heuristic: {exc}")
 
+    # Fallback to rule-based heuristic intent parser
     if not parsed_intent or not isinstance(parsed_intent, dict):
         parsed_intent = heuristic_intent_parser(query)
 
+    # 4. Check if LLM or heuristic flagged query as invalid
+    if parsed_intent.get("is_valid") is False:
+        err_msg = parsed_intent.get("error_message") or "Please enter a valid listening mood (e.g. 'Late Night Study', 'Heavy Workout', 'Rainy Sunday')."
+        return {
+            "is_valid": False,
+            "validation_error": err_msg,
+            "parsed_intent": parsed_intent,
+            "dense_query": "",
+            "candidates": [],
+            "filtered_tracks": [],
+            "ranked_tracks": [],
+            "overall_reasoning": err_msg
+        }
+
     dense_query = parsed_intent.get("dense_query", query)
     return {
+        "is_valid": True,
+        "validation_error": None,
         "parsed_intent": parsed_intent,
         "dense_query": dense_query
     }
@@ -87,7 +133,11 @@ def retrieve_candidates_node(
     """
     Node 2: Search FAISS vector store with GLIDE mode toggle.
     Familiar mode (lambda=1.0) vs Explore mode (lambda=0.45).
+    Safely skips vector search if the query was invalid.
     """
+    if not state.get("is_valid", True):
+        return {"candidates": []}
+
     dense_query = state.get("dense_query") or state.get("query", "calm study")
     mode = state.get("discovery_mode", "familiar").lower()
     target_k = state.get("k", 8)
@@ -105,7 +155,11 @@ def retrieve_candidates_node(
 def filter_node(state: RecommenderState) -> dict[str, Any]:
     """
     Node 3: Apply soft constraint scoring to candidates matching intent bounds.
+    Safely skips filtering if query was invalid.
     """
+    if not state.get("is_valid", True):
+        return {"filtered_tracks": []}
+
     candidates = state.get("candidates", [])
     intent = state.get("parsed_intent", {})
 
@@ -159,6 +213,9 @@ def rank_node(state: RecommenderState) -> dict[str, Any]:
     """
     Node 4: Sort candidates by final score and truncate to top-k.
     """
+    if not state.get("is_valid", True):
+        return {"ranked_tracks": []}
+
     tracks = state.get("filtered_tracks") or state.get("candidates", [])
     target_k = state.get("k", 8)
 
@@ -170,7 +227,15 @@ def rank_node(state: RecommenderState) -> dict[str, Any]:
 def explain_node(state: RecommenderState) -> dict[str, Any]:
     """
     Node 5: Generate grounded explanations referencing query scenario, traits, and Semantic ID.
+    If the query was invalid, outputs the validation message.
     """
+    if not state.get("is_valid", True):
+        val_err = state.get("validation_error") or "Please enter a valid listening mood or vibe."
+        return {
+            "ranked_tracks": [],
+            "overall_reasoning": val_err
+        }
+
     ranked_tracks = state.get("ranked_tracks", [])
     intent = state.get("parsed_intent", {})
     query = state.get("query", "")

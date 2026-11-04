@@ -8,6 +8,7 @@ import {
 } from '../services/api';
 import { webllmService } from '../services/webllmService';
 import { LLMRouter, ENGINE_MODES } from '../services/llmRouter';
+import { validateMoodPrompt } from '../utils/validation';
 import {
   MOCK_RECOMMENDED_TRACKS,
   SEED_PLAYER_TRACK,
@@ -26,6 +27,8 @@ export function useSonoraDiscovery(userId = 'listener_01') {
   const [loading, setLoading] = useState(false);
   const [backendHealthy, setBackendHealthy] = useState(true);
   const [geminiActive, setGeminiActive] = useState(false);
+  const [validationError, setValidationError] = useState(null);
+  const [isInvalidMood, setIsInvalidMood] = useState(false);
 
   // Dual-Engine LLM State
   const [enginePreference, setEnginePreference] = useState(ENGINE_MODES.AUTO);
@@ -137,8 +140,32 @@ export function useSonoraDiscovery(userId = 'listener_01') {
       const activeMode = customMode !== null ? customMode : mode;
       const targetPref = overrideEngine !== null ? overrideEngine : enginePreference;
 
-      if (!activePrompt) return { success: false, message: 'Please enter a listening mood.' };
+      if (!activePrompt) {
+        setValidationError('Please describe your listening mood first.');
+        setIsInvalidMood(true);
+        setTracks([]);
+        return { success: false, isValid: false, message: 'Please enter a listening mood.' };
+      }
 
+      // 1. Client-Side Pre-Validation for Edge Cases (numbers, gibberish, off-topic, symbols)
+      const clientValidation = validateMoodPrompt(activePrompt);
+      if (!clientValidation.isValid) {
+        setValidationError(clientValidation.errorMessage);
+        setIsInvalidMood(true);
+        setTracks([]);
+        setGeneratedPrompt(activePrompt);
+        setOverallReasoning(clientValidation.errorMessage);
+        setIntentDimensions([]);
+        return {
+          success: false,
+          isValid: false,
+          error: clientValidation.errorMessage,
+          message: clientValidation.errorMessage
+        };
+      }
+
+      setValidationError(null);
+      setIsInvalidMood(false);
       setLoading(true);
 
       // 1. Resolve active LLM engine
@@ -184,7 +211,24 @@ export function useSonoraDiscovery(userId = 'listener_01') {
           preparsedIntent
         });
 
+        if (resp && resp.is_valid === false) {
+          setTracks([]);
+          setGeneratedPrompt(activePrompt);
+          setValidationError(resp.error_message || 'Please enter a valid listening mood.');
+          setIsInvalidMood(true);
+          if (resp.overall_reasoning) setOverallReasoning(resp.overall_reasoning);
+          setIntentDimensions([]);
+          setBackendHealthy(true);
+          return {
+            success: false,
+            isValid: false,
+            error: resp.error_message || 'Please enter a valid listening mood.'
+          };
+        }
+
         if (resp && resp.tracks && resp.tracks.length > 0) {
+          setValidationError(null);
+          setIsInvalidMood(false);
           let finalTracks = resp.tracks;
 
           // If WebLLM is active, enhance track explanations in worker
@@ -223,6 +267,12 @@ export function useSonoraDiscovery(userId = 'listener_01') {
         return { success: false, message: 'No tracks matched your criteria.' };
       } catch (err) {
         console.error('Discovery error:', err);
+        if (err.message && (err.message.includes('400') || err.message.includes('valid mood'))) {
+          setTracks([]);
+          setValidationError('Please enter a valid listening mood or vibe.');
+          setIsInvalidMood(true);
+          return { success: false, isValid: false, error: err.message };
+        }
         setBackendHealthy(false);
         setTracks(prev => (prev && prev.length > 0 ? prev : MOCK_RECOMMENDED_TRACKS));
         return { success: false, error: err.message };
@@ -445,6 +495,10 @@ export function useSonoraDiscovery(userId = 'listener_01') {
     webllmProgress,
     tracks,
     loading,
+    validationError,
+    setValidationError,
+    isInvalidMood,
+    setIsInvalidMood,
     backendHealthy,
     geminiActive,
     intentDimensions,
